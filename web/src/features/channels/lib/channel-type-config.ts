@@ -164,6 +164,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.derouter.ai',
+    hints: {
+      key: 'Derouter Account Key (sk-ant-...)',
+      models: 'claude-sonnet-4-6, gpt-5.5',
+      baseUrl: 'Relay host. Management uses cf-api.derouter.ai automatically.',
+    },
+  },
 }
 
 /**
