@@ -354,6 +354,69 @@ export async function resetCodexUsage(
 }
 
 // ============================================================================
+// Derouter Channel Operations
+// ============================================================================
+
+export type DerouterRawResponse = Record<string, unknown>
+
+export async function getDerouterBalance(id: number): Promise<DerouterRawResponse> {
+  const res = await api.get(`/api/channel/${id}/derouter/balance`)
+  return res.data
+}
+
+export async function listDerouterSubKeys(id: number): Promise<DerouterRawResponse> {
+  const res = await api.get(`/api/channel/${id}/derouter/subkeys`)
+  return res.data
+}
+
+export async function createDerouterSubKey(
+  id: number,
+  payload: { budgetVirtual: number; label?: string; rpmLimit?: number },
+): Promise<DerouterRawResponse> {
+  const res = await api.post(`/api/channel/${id}/derouter/subkeys`, payload, channelActionConfig())
+  return res.data
+}
+
+export async function updateDerouterSubKey(
+  id: number,
+  sid: string,
+  payload: { label?: string; rpmLimit?: number; addBudgetVirtual?: number; displayMultiplier?: number },
+): Promise<DerouterRawResponse> {
+  const res = await api.put(`/api/channel/${id}/derouter/subkeys/${sid}`, payload, channelActionConfig())
+  return res.data
+}
+
+export async function deleteDerouterSubKey(id: number, sid: string): Promise<DerouterRawResponse> {
+  const res = await api.delete(`/api/channel/${id}/derouter/subkeys/${sid}`, channelActionConfig())
+  return res.data
+}
+
+export async function listDerouterUsageLogs(
+  id: number,
+  params?: { page?: number; limit?: number; subKeyId?: string; accountOnly?: string },
+): Promise<DerouterRawResponse> {
+  const res = await api.get(`/api/channel/${id}/derouter/usage-logs`, { params })
+  return res.data
+}
+
+export async function getDerouterSubKeyBalance(id: number, subKey: string): Promise<DerouterRawResponse> {
+  const res = await api.get(`/api/channel/${id}/derouter/sub-key/balance`, { data: { subKey } })
+  return res.data
+}
+
+export async function listDerouterSubKeyUsageLogs(
+  id: number,
+  subKey: string,
+  page?: number,
+  limit?: number,
+): Promise<DerouterRawResponse> {
+  const res = await api.get(`/api/channel/${id}/derouter/sub-key/usage-logs`, {
+    data: { subKey, page, limit },
+  })
+  return res.data
+}
+
+// ============================================================================
 // Multi-Key Management
 // ============================================================================
 

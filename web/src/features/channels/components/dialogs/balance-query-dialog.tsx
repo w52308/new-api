@@ -33,13 +33,18 @@ import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
-import { getCodexUsage, updateChannelBalance } from '../../api'
+import {
+  getCodexUsage,
+  getDerouterBalance,
+  updateChannelBalance,
+} from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './codex-usage-dialog'
+import { DerouterBalanceDialog } from './derouter-balance-dialog'
 
 type BalanceQueryDialogProps = {
   initialRawResponse?: string
@@ -61,8 +66,35 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const [derouterBalanceData, setDerouterBalanceData] = useState<
+    Record<string, unknown> | null
+  >(null)
 
   const isCodex = currentRow?.type === 57
+  const isDerouter = currentRow?.type === 61
+
+  const handleQueryDerouterBalance = async () => {
+    const row = currentRow
+    if (!row) return
+    setIsQuerying(true)
+    try {
+      const res = await getDerouterBalance(row.id)
+      setDerouterBalanceData(res)
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to fetch balance')
+      )
+    } finally {
+      setIsQuerying(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isDerouter) return
+    if (!props.open) return
+    handleQueryDerouterBalance()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.open, isDerouter])
 
   const handleQueryCodexUsage = async () => {
     const row = currentRow
@@ -135,6 +167,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     setBalanceUpdatedTime(null)
     setRawResponse(null)
     setCodexUsageResponse(null)
+    setDerouterBalanceData(null)
     props.onOpenChange(false)
   }
 
@@ -162,6 +195,18 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         response={codexUsageResponse}
         onRefresh={handleQueryCodexUsage}
         isRefreshing={isQuerying}
+      />
+    )
+  }
+
+  if (isDerouter) {
+    return (
+      <DerouterBalanceDialog
+        open={props.open}
+        onOpenChange={(v) => {
+          if (!v) handleClose()
+        }}
+        data={derouterBalanceData}
       />
     )
   }

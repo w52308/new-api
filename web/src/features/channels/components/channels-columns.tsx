@@ -55,7 +55,12 @@ import {
 import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
-import { getCodexUsage, updateChannelBalance } from '../api'
+import {
+  getCodexUsage,
+  getDerouterBalance,
+  listDerouterUsageLogs,
+  updateChannelBalance,
+} from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatRelativeTime,
@@ -86,6 +91,8 @@ import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
+import { DerouterBalanceDialog } from './dialogs/derouter-balance-dialog'
+import { DerouterUsageLogsDialog } from './dialogs/derouter-usage-logs-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
@@ -341,6 +348,14 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const [derouterBalanceOpen, setDerouterBalanceOpen] = useState(false)
+  const [derouterBalanceData, setDerouterBalanceData] = useState<
+    Record<string, unknown> | null
+  >(null)
+  const [derouterUsageOpen, setDerouterUsageOpen] = useState(false)
+  const [derouterUsageData, setDerouterUsageData] = useState<
+    Record<string, unknown> | null
+  >(null)
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -446,6 +461,21 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       return
     }
 
+    if (channel.type === 61) {
+      try {
+        const res = await getDerouterBalance(channel.id)
+        setDerouterBalanceData(res)
+        setDerouterBalanceOpen(true)
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t('Failed to fetch balance')
+        )
+      } finally {
+        setIsUpdating(false)
+      }
+      return
+    }
+
     try {
       const response = await updateChannelBalance(channel.id)
       if (response.success && response.balance !== undefined) {
@@ -480,15 +510,21 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     remainingBadgeLabel = t('Updating...')
   } else if (sensitiveVisible && channel.type === 57) {
     remainingBadgeLabel = t('Account Info')
+  } else if (sensitiveVisible && channel.type === 61) {
+    remainingBadgeLabel = t('Derouter Balance')
   }
   let remainingTooltipLabel = remainingLabel
   if (!sensitiveVisible) {
     remainingTooltipLabel = maskedRemainingLabel
   } else if (channel.type === 57) {
     remainingTooltipLabel = t('Click to view Codex usage')
+  } else if (channel.type === 61) {
+    remainingTooltipLabel = t('Click to view Derouter balance')
   }
   let remainingBadgeVariant: StatusBadgeProps['variant'] = variant
   if (channel.type === 57) {
+    remainingBadgeVariant = 'info'
+  } else if (channel.type === 61) {
     remainingBadgeVariant = 'info'
   } else if (isUpdating) {
     remainingBadgeVariant = 'neutral'
@@ -530,11 +566,56 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           />
           <TooltipContent>
             <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type !== 57 && channel.type !== 61 && (
+              <p>{t('Click to update balance')}</p>
+            )}
           </TooltipContent>
         </Tooltip>
+        {channel.type === 61 && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <StatusBadge
+                  label={t('Usage')}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                  showDot={false}
+                  className='cursor-pointer'
+                  onClick={() => {
+                    void listDerouterUsageLogs(channel.id)
+                      .then((res) => {
+                        setDerouterUsageData(res)
+                        setDerouterUsageOpen(true)
+                      })
+                      .catch((error: unknown) => {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : t('Failed to fetch usage')
+                        )
+                      })
+                  }}
+                />
+              }
+            />
+            <TooltipContent>
+              <p>{t('View Derouter usage logs')}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
+      <DerouterBalanceDialog
+        open={derouterBalanceOpen}
+        onOpenChange={setDerouterBalanceOpen}
+        data={derouterBalanceData}
+      />
+      <DerouterUsageLogsDialog
+        open={derouterUsageOpen}
+        onOpenChange={setDerouterUsageOpen}
+        data={derouterUsageData}
+      />
       <CodexUsageDialog
         open={codexUsageOpen}
         onOpenChange={setCodexUsageOpen}
