@@ -92,6 +92,7 @@ import {
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
 import { DerouterBalanceDialog } from './dialogs/derouter-balance-dialog'
+import { DerouterSubKeysDialog } from './dialogs/derouter-subkeys-dialog'
 import { DerouterUsageLogsDialog } from './dialogs/derouter-usage-logs-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
@@ -356,6 +357,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   const [derouterUsageData, setDerouterUsageData] = useState<
     Record<string, unknown> | null
   >(null)
+  const [derouterSubKeysOpen, setDerouterSubKeysOpen] = useState(false)
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -572,37 +574,57 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           </TooltipContent>
         </Tooltip>
         {channel.type === 61 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <StatusBadge
-                  label={t('Usage')}
-                  variant='neutral'
-                  size='sm'
-                  copyable={false}
-                  showDot={false}
-                  className='cursor-pointer'
-                  onClick={() => {
-                    void listDerouterUsageLogs(channel.id)
-                      .then((res) => {
-                        setDerouterUsageData(res)
-                        setDerouterUsageOpen(true)
-                      })
-                      .catch((error: unknown) => {
-                        toast.error(
-                          error instanceof Error
-                            ? error.message
-                            : t('Failed to fetch usage')
-                        )
-                      })
-                  }}
-                />
-              }
-            />
-            <TooltipContent>
-              <p>{t('View Derouter usage logs')}</p>
-            </TooltipContent>
-          </Tooltip>
+          <>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <StatusBadge
+                    label={t('Usage')}
+                    variant='neutral'
+                    size='sm'
+                    copyable={false}
+                    showDot={false}
+                    className='cursor-pointer'
+                    onClick={() => {
+                      void listDerouterUsageLogs(channel.id)
+                        .then((res) => {
+                          setDerouterUsageData(res)
+                          setDerouterUsageOpen(true)
+                        })
+                        .catch((error: unknown) => {
+                          toast.error(
+                            error instanceof Error
+                              ? error.message
+                              : t('Failed to fetch usage')
+                          )
+                        })
+                    }}
+                  />
+                }
+              />
+              <TooltipContent>
+                <p>{t('View Derouter usage logs')}</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <StatusBadge
+                    label={t('Sub-keys')}
+                    variant='neutral'
+                    size='sm'
+                    copyable={false}
+                    showDot={false}
+                    className='cursor-pointer'
+                    onClick={() => setDerouterSubKeysOpen(true)}
+                  />
+                }
+              />
+              <TooltipContent>
+                <p>{t('Manage Derouter sub-keys')}</p>
+              </TooltipContent>
+            </Tooltip>
+          </>
         )}
       </div>
 
@@ -615,6 +637,11 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         open={derouterUsageOpen}
         onOpenChange={setDerouterUsageOpen}
         data={derouterUsageData}
+      />
+      <DerouterSubKeysDialog
+        open={derouterSubKeysOpen}
+        onOpenChange={setDerouterSubKeysOpen}
+        channelId={channel.id}
       />
       <CodexUsageDialog
         open={codexUsageOpen}
