@@ -51,7 +51,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
-	header.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+	// 若该请求的 token 关联了 derouter sub-key，则用 sub-key 作为 Bearer 鉴权，
+	// 否则回退到渠道 account key。
+	bearer := info.ApiKey
+	if info.TokenDerouterSubKey != "" {
+		bearer = info.TokenDerouterSubKey
+	}
+	header.Set("Authorization", fmt.Sprintf("Bearer %s", bearer))
 	if info.RelayFormat == types.RelayFormatClaude {
 		anthropicVersion := "2023-06-01"
 		if c != nil {

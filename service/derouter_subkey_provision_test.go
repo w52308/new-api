@@ -64,14 +64,14 @@ func TestProvisionDerouterSubKeyCreatesWithFixedBudget(t *testing.T) {
 		gotBody = string(body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"data":{"keyId":"subkey-abc"}}`)
+		_, _ = io.WriteString(w, `{"data":{"key":"sk-ant-subkey-full-value","keyId":"subkey-abc"}}`)
 	}))
 	defer srv.Close()
 
 	chID := insertDerouterChannel(t, db, "sk-ant-account")
-	keyID, err := provisionDerouterSubKey(context.Background(), chID, "test-user", srv.URL)
+	subKey, err := provisionDerouterSubKey(context.Background(), chID, "test-user", srv.URL)
 	require.NoError(t, err)
-	require.Equal(t, "subkey-abc", keyID)
+	require.Equal(t, "sk-ant-subkey-full-value", subKey)
 	require.Equal(t, "Bearer sk-ant-account", gotAuth)
 	require.Contains(t, gotBody, `"budgetVirtual":1`)
 	require.Contains(t, gotBody, `"label":"test-user"`)
@@ -87,7 +87,7 @@ func TestProvisionDerouterSubKeyRejectsNonDerouterChannel(t *testing.T) {
 	require.Contains(t, err.Error(), "not a Derouter channel")
 }
 
-func TestProvisionDerouterSubKeyMissingKeyID(t *testing.T) {
+func TestProvisionDerouterSubKeyMissingValue(t *testing.T) {
 	db := setupProvisionTestDB(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -98,7 +98,7 @@ func TestProvisionDerouterSubKeyMissingKeyID(t *testing.T) {
 	chID := insertDerouterChannel(t, db, "sk-ant-account")
 	_, err := provisionDerouterSubKey(context.Background(), chID, "test-user", srv.URL)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing keyId")
+	require.Contains(t, err.Error(), "missing subkey value")
 }
 
 func TestProvisionDerouterSubKeyUpstreamError(t *testing.T) {

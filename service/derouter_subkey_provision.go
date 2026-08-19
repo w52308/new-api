@@ -15,8 +15,9 @@ import (
 const DefaultDerouterSubKeyBudgetVirtual = 1.0
 
 // ProvisionDerouterSubKey creates a subkey for the given Derouter channel and
-// returns the created subkey's keyId (used for later display/management). The
-// full subkey value is intentionally not persisted anywhere in new-api.
+// returns the created subkey's full value, which is used as the user's Bearer
+// credential when relaying to derouter. The subkey value is a secret and must
+// be treated as sensitive by callers.
 func ProvisionDerouterSubKey(ctx context.Context, channelID int, label string) (string, error) {
 	return provisionDerouterSubKey(ctx, channelID, label, DerouterMgmtBaseURL(""))
 }
@@ -54,20 +55,34 @@ func provisionDerouterSubKey(ctx context.Context, channelID int, label, baseURL 
 		return "", fmt.Errorf("create derouter subkey failed with status %d: %s", code, string(body))
 	}
 
+	subKey, err := parseDerouterSubKeyResponse(body)
+	if err != nil {
+		return "", err
+	}
+	return subKey, nil
+}
+
+// parseDerouterSubKeyResponse extracts the full subkey value from a
+// POST /sub-keys response. The field may be nested under "data" or at the
+// top level, and may be named "key", "subKey" or "keyId".
+func parseDerouterSubKeyResponse(body []byte) (string, error) {
 	var resp struct {
 		Data struct {
-			KeyID string `json:"keyId"`
+			Key    string `json:"key"`
+			SubKey string `json:"subKey"`
+			KeyID  string `json:"keyId"`
 		} `json:"data"`
-		KeyID string `json:"keyId"`
+		Key    string `json:"key"`
+		SubKey string `json:"subKey"`
+		KeyID  string `json:"keyId"`
 	}
 	if err := common.Unmarshal(body, &resp); err != nil {
 		return "", fmt.Errorf("parse derouter subkey response: %w", err)
 	}
-	if resp.Data.KeyID != "" {
-		return resp.Data.KeyID, nil
+	for _, v := range []string{resp.Data.Key, resp.Data.SubKey, resp.Data.KeyID, resp.Key, resp.SubKey, resp.KeyID} {
+		if v != "" {
+			return v, nil
+		}
 	}
-	if resp.KeyID != "" {
-		return resp.KeyID, nil
-	}
-	return "", errors.New("derouter subkey response missing keyId")
+	return "", errors.New("derouter subkey response missing subkey value")
 }

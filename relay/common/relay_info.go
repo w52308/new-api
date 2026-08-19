@@ -81,16 +81,17 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	TokenId             int
+	TokenKey            string
+	TokenDerouterSubKey string
+	TokenGroup          string
+	UserId              int
+	UsingGroup          string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup           string // 用户所在分组
+	TokenUnlimited      bool
+	StartTime           time.Time
+	FirstResponseTime   time.Time
+	isFirstResponse     bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -515,10 +516,11 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 
-		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
-		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
-		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
-		TokenGroup:     tokenGroup,
+		TokenId:             common.GetContextKeyInt(c, constant.ContextKeyTokenId),
+		TokenKey:            common.GetContextKeyString(c, constant.ContextKeyTokenKey),
+		TokenDerouterSubKey: common.GetContextKeyString(c, constant.ContextKeyTokenDerouterSubKey),
+		TokenUnlimited:      common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
+		TokenGroup:          tokenGroup,
 
 		isFirstResponse: true,
 		RelayMode:       relayconstant.Path2RelayMode(c.Request.URL.Path),

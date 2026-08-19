@@ -418,7 +418,7 @@ export function UsersMutateDrawer({
                           ) : (
                             <FormDescription>
                               {t(
-                                'Creates a Derouter sub-key (fixed budget) and stores its id on the user'
+                                'Creates a Derouter sub-key (fixed budget) used as this user’s relay credential'
                               )}
                             </FormDescription>
                           )}
@@ -636,18 +636,6 @@ export function UsersMutateDrawer({
                   </p>
 
                   <div className='flex flex-col gap-3'>
-                    {currentRow?.derouter_sub_key_id ? (
-                      <div>
-                        <Label className='text-muted-foreground text-xs'>
-                          {t('Derouter Sub-key ID')}
-                        </Label>
-                        <Input
-                          value={currentRow.derouter_sub_key_id}
-                          disabled
-                          className='mt-1 font-mono text-xs'
-                        />
-                      </div>
-                    ) : null}
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
                         <Label className='text-muted-foreground text-xs'>

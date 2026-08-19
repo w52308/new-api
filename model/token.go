@@ -29,6 +29,8 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
+	DerouterSubKey     string         `json:"-" gorm:"type:text;column:derouter_sub_key"`
+	DerouterChannelID  int            `json:"-" gorm:"type:int;column:derouter_channel_id"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 

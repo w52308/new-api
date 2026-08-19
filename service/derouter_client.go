@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const DefaultDerouterMgmtBaseURL = "https://cf-api.derouter.ai"
+var DefaultDerouterMgmtBaseURL = "https://cf-api.derouter.ai"
 
 // DerouterMgmtBaseURL resolves the management base URL, allowing a per-channel override.
 func DerouterMgmtBaseURL(override string) string {

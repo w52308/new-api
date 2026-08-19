@@ -345,6 +345,9 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
 		c.Set("token_key", token.Key)
+		if token.DerouterSubKey != "" {
+			c.Set(string(constant.ContextKeyTokenDerouterSubKey), token.DerouterSubKey)
+		}
 		c.Next()
 	}
 }
@@ -491,6 +494,9 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	c.Set("token_id", token.Id)
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)
+	if token.DerouterSubKey != "" {
+		c.Set(string(constant.ContextKeyTokenDerouterSubKey), token.DerouterSubKey)
+	}
 	c.Set("token_unlimited_quota", token.UnlimitedQuota)
 	if !token.UnlimitedQuota {
 		c.Set("token_quota", token.RemainQuota)

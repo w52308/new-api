@@ -102,3 +102,25 @@ func TestSetupRequestHeaderClaudePreservesInboundAnthropicVersion(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, "2023-06-02", h.Get("anthropic-version"))
 }
+
+func TestSetupRequestHeaderUsesTokenSubKeyWhenPresent(t *testing.T) {
+	a := &Adaptor{}
+	info := newInfo(types.RelayFormatOpenAI, "https://api.derouter.ai")
+	info.ApiKey = "sk-ant-account"
+	info.TokenDerouterSubKey = "sk-ant-user-subkey"
+	h := http.Header{}
+	err := a.SetupRequestHeader(newTestContext(), &h, info)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer sk-ant-user-subkey", h.Get("Authorization"))
+}
+
+func TestSetupRequestHeaderFallsBackToAccountKeyWithoutSubKey(t *testing.T) {
+	a := &Adaptor{}
+	info := newInfo(types.RelayFormatOpenAI, "https://api.derouter.ai")
+	info.ApiKey = "sk-ant-account"
+	info.TokenDerouterSubKey = ""
+	h := http.Header{}
+	err := a.SetupRequestHeader(newTestContext(), &h, info)
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer sk-ant-account", h.Get("Authorization"))
+}
