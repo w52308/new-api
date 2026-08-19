@@ -62,6 +62,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { getChannels } from '@/features/channels/api'
+import { CHANNEL_TYPE_DEROUTER } from '@/features/channels/constants'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -119,6 +121,18 @@ export function UsersMutateDrawer({
   })
 
   const groups = groupsData?.data || []
+
+  // Derouter channels available for sub-key provisioning (only on create).
+  const { data: derouterChannelsData } = useQuery({
+    queryKey: ['channels', 'derouter'],
+    queryFn: () => getChannels({ p: 1, page_size: 100 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: !isUpdate,
+  })
+  const derouterChannels =
+    derouterChannelsData?.data?.items?.filter(
+      (ch) => ch.type === CHANNEL_TYPE_DEROUTER && ch.status === 1
+    ) ?? []
 
   // Permission catalog is owned by the backend; fetched once and reused.
   const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({
@@ -346,6 +360,74 @@ export function UsersMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                {!isUpdate && (
+                  <FormField
+                    control={form.control}
+                    name='derouter_channel_id'
+                    render={({ field }) => {
+                      const enabled = field.value && field.value > 0
+                      return (
+                        <FormItem>
+                          <div className='flex items-center gap-2'>
+                            <Checkbox
+                              id='create-derouter-subkey'
+                              checked={!!enabled}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked ? derouterChannels[0]?.id ?? 0 : 0)
+                              }
+                            />
+                            <Label
+                              htmlFor='create-derouter-subkey'
+                              className='cursor-pointer'
+                            >
+                              {t('Create derouter sub-key for this user')}
+                            </Label>
+                          </div>
+                          {enabled ? (
+                            <Select
+                              items={derouterChannels.map((ch) => ({
+                                value: String(ch.id),
+                                label: ch.name,
+                              }))}
+                              onValueChange={(value) =>
+                                value !== null && field.onChange(parseInt(value))
+                              }
+                              value={String(field.value)}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={t('Select a Derouter channel')} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  {derouterChannels.map((ch) => (
+                                    <SelectItem key={ch.id} value={String(ch.id)}>
+                                      {ch.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          ) : null}
+                          {derouterChannels.length === 0 ? (
+                            <FormDescription>
+                              {t('No enabled Derouter channel available')}
+                            </FormDescription>
+                          ) : (
+                            <FormDescription>
+                              {t(
+                                'Creates a Derouter sub-key (fixed budget) and stores its id on the user'
+                              )}
+                            </FormDescription>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )}
               </SideDrawerSection>
 
               {/* Group & Quota Settings (Update only) */}
@@ -554,6 +636,18 @@ export function UsersMutateDrawer({
                   </p>
 
                   <div className='flex flex-col gap-3'>
+                    {currentRow?.derouter_sub_key_id ? (
+                      <div>
+                        <Label className='text-muted-foreground text-xs'>
+                          {t('Derouter Sub-key ID')}
+                        </Label>
+                        <Input
+                          value={currentRow.derouter_sub_key_id}
+                          disabled
+                          className='mt-1 font-mono text-xs'
+                        />
+                      </div>
+                    ) : null}
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
                         <Label className='text-muted-foreground text-xs'>

@@ -59,6 +59,8 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  derouter_sub_key_id: z.string().optional(),
+  derouter_channel_id: z.number().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -125,6 +127,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  derouter_channel_id?: number // Only used when creating user
   admin_permissions?: AdminPermissionMatrix
 }
 

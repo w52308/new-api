@@ -533,6 +533,8 @@ func buildSelfUserData(user *model.User) map[string]interface{} {
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
+		"derouter_sub_key_id": user.DerouterSubKeyID,
+		"derouter_channel_id": user.DerouterChannelID,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,
 	}
@@ -1022,10 +1024,11 @@ func CreateUser(c *gin.Context) {
 	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:          user.Username,
+		Password:          user.Password,
+		DisplayName:       user.DisplayName,
+		Role:              user.Role, // 保持管理员设置的角色
+		DerouterChannelID: user.DerouterChannelID,
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -1034,7 +1037,23 @@ func CreateUser(c *gin.Context) {
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, cleanUser.Id, cleanUser.Role, user.AdminPermissions)
 		authzTouched = touched
-		return err
+		if err != nil {
+			return err
+		}
+		// 若请求指定了 derouter 渠道，则在同一个事务内创建 subkey 并回写用户记录，
+		// subkey 创建失败则整个用户创建失败回滚，避免"有用户但无 subkey"的中间态。
+		if cleanUser.DerouterChannelID > 0 {
+			subKeyID, err := service.ProvisionDerouterSubKey(c.Request.Context(), cleanUser.DerouterChannelID, cleanUser.Username)
+			if err != nil {
+				return err
+			}
+			if err := tx.Model(&cleanUser).Updates(map[string]interface{}{
+				"derouter_sub_key_id": subKeyID,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		common.ApiError(c, err)
 		return
