@@ -14,33 +14,40 @@ import (
 // subkey when it is provisioned automatically during user creation.
 const DefaultDerouterSubKeyBudgetVirtual = 1.0
 
+// DerouterSubKeyProvisionResult is the outcome of creating a derouter sub-key.
+// SubKey is the full credential value used as the user's Bearer when relaying;
+// KeyID is the upstream sub-key id used to delete or query the sub-key later.
+// Both are secrets and must be treated as sensitive by callers.
+type DerouterSubKeyProvisionResult struct {
+	SubKey string
+	KeyID  string
+}
+
 // ProvisionDerouterSubKey creates a subkey for the given Derouter channel and
-// returns the created subkey's full value, which is used as the user's Bearer
-// credential when relaying to derouter. The subkey value is a secret and must
-// be treated as sensitive by callers.
-func ProvisionDerouterSubKey(ctx context.Context, channelID int, label string) (string, error) {
+// returns the created subkey's full value together with its upstream keyId.
+func ProvisionDerouterSubKey(ctx context.Context, channelID int, label string) (DerouterSubKeyProvisionResult, error) {
 	return provisionDerouterSubKey(ctx, channelID, label, DerouterMgmtBaseURL(""))
 }
 
 // provisionDerouterSubKey is the testable core of ProvisionDerouterSubKey;
 // baseURL is injectable for tests.
-func provisionDerouterSubKey(ctx context.Context, channelID int, label, baseURL string) (string, error) {
+func provisionDerouterSubKey(ctx context.Context, channelID int, label, baseURL string) (DerouterSubKeyProvisionResult, error) {
 	ch, err := model.GetChannelById(channelID, true)
 	if err != nil {
-		return "", fmt.Errorf("load derouter channel %d: %w", channelID, err)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("load derouter channel %d: %w", channelID, err)
 	}
 	if ch == nil {
-		return "", errors.New("derouter channel not found")
+		return DerouterSubKeyProvisionResult{}, errors.New("derouter channel not found")
 	}
 	if ch.Type != constant.ChannelTypeDerouter {
-		return "", fmt.Errorf("channel %d is not a Derouter channel (type %d)", channelID, ch.Type)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("channel %d is not a Derouter channel (type %d)", channelID, ch.Type)
 	}
 	if ch.ChannelInfo.IsMultiKey {
-		return "", fmt.Errorf("derouter channel %d is multi-key, single-key required", channelID)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("derouter channel %d is multi-key, single-key required", channelID)
 	}
 	accountKey := ch.Key
 	if accountKey == "" {
-		return "", fmt.Errorf("derouter channel %d has no account key", channelID)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("derouter channel %d has no account key", channelID)
 	}
 
 	client := NewDerouterMgmtClient()
@@ -49,40 +56,54 @@ func provisionDerouterSubKey(ctx context.Context, channelID int, label, baseURL 
 		Label:         label,
 	})
 	if err != nil {
-		return "", fmt.Errorf("create derouter subkey: %w", err)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("create derouter subkey: %w", err)
 	}
 	if code < 200 || code >= 300 {
-		return "", fmt.Errorf("create derouter subkey failed with status %d: %s", code, string(body))
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("create derouter subkey failed with status %d: %s", code, string(body))
 	}
 
-	subKey, err := parseDerouterSubKeyResponse(body)
+	result, err := parseDerouterSubKeyResponse(body)
 	if err != nil {
-		return "", err
+		return DerouterSubKeyProvisionResult{}, err
 	}
-	return subKey, nil
+	return result, nil
 }
 
-// parseDerouterSubKeyResponse extracts the full subkey value from a
-// POST /sub-keys response. The field may be nested under "data" or at the
-// top level, and may be named "key", "subKey" or "keyId".
-func parseDerouterSubKeyResponse(body []byte) (string, error) {
+// parseDerouterSubKeyResponse extracts the full subkey value and upstream id
+// from a POST /sub-keys response. The response may be nested under "data" or at
+// the top level. The management id is the upstream "id" (a UUID), NOT "keyId"
+// (which is the masked key form); keyId cannot be used to update/delete a sub-key.
+func parseDerouterSubKeyResponse(body []byte) (DerouterSubKeyProvisionResult, error) {
 	var resp struct {
 		Data struct {
+			ID     string `json:"id"`
 			Key    string `json:"key"`
 			SubKey string `json:"subKey"`
 			KeyID  string `json:"keyId"`
 		} `json:"data"`
+		ID     string `json:"id"`
 		Key    string `json:"key"`
 		SubKey string `json:"subKey"`
 		KeyID  string `json:"keyId"`
 	}
 	if err := common.Unmarshal(body, &resp); err != nil {
-		return "", fmt.Errorf("parse derouter subkey response: %w", err)
+		return DerouterSubKeyProvisionResult{}, fmt.Errorf("parse derouter subkey response: %w", err)
 	}
-	for _, v := range []string{resp.Data.Key, resp.Data.SubKey, resp.Data.KeyID, resp.Key, resp.SubKey, resp.KeyID} {
+	subKey := firstNonEmpty(resp.Data.Key, resp.Data.SubKey, resp.Key, resp.SubKey)
+	if subKey == "" {
+		return DerouterSubKeyProvisionResult{}, errors.New("derouter subkey response missing subkey value")
+	}
+	return DerouterSubKeyProvisionResult{
+		SubKey: subKey,
+		KeyID:  firstNonEmpty(resp.Data.ID, resp.ID),
+	}, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
 		if v != "" {
-			return v, nil
+			return v
 		}
 	}
-	return "", errors.New("derouter subkey response missing subkey value")
+	return ""
 }

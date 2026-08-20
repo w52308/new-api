@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
@@ -246,6 +247,23 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.DELETE("/:id", controller.DeleteToken)
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
+		}
+
+		// Derouter API keys are managed separately from ordinary tokens. Reads
+		// need DerouterKeyRead, writes (provisioning/deleting upstream sub-keys)
+		// need DerouterKeyWrite. These are registered before "/:id" so the
+		// literal path segments win over the parametric route.
+		derouterTokenRoute := apiRouter.Group("/token/derouter")
+		derouterTokenRoute.Use(middleware.UserAuth())
+		{
+			derouterTokenRoute.GET("/channels", middleware.RequirePermission(authz.DerouterKeyRead), controller.ListDerouterChannels)
+			derouterTokenRoute.GET("/all", middleware.RequirePermission(authz.DerouterKeyRead), controller.GetAllDerouterTokens)
+			derouterTokenRoute.POST("", middleware.RequirePermission(authz.DerouterKeyWrite), controller.CreateDerouterToken)
+			derouterTokenRoute.DELETE("/:id", middleware.RequirePermission(authz.DerouterKeyWrite), controller.DeleteDerouterToken)
+			derouterTokenRoute.GET("/:id/key", middleware.RequirePermission(authz.DerouterKeyRead), controller.GetDerouterTokenKey)
+			derouterTokenRoute.GET("/:id/usage", middleware.RequirePermission(authz.DerouterUsageRead), controller.GetDerouterTokenUsage)
+			derouterTokenRoute.GET("/:id/balance", middleware.RequirePermission(authz.DerouterKeyRead), controller.GetDerouterTokenBalance)
+			derouterTokenRoute.PUT("/:id/budget", middleware.RequirePermission(authz.DerouterKeyWrite), controller.UpdateDerouterTokenBudget)
 		}
 
 		usageRoute := apiRouter.Group("/usage")

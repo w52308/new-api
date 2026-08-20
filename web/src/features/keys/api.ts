@@ -36,8 +36,9 @@ import type {
 export async function getApiKeys(
   params: GetApiKeysParams = {}
 ): Promise<GetApiKeysResponse> {
-  const { p = 1, size = 10 } = params
-  const res = await api.get(`/api/token/?p=${p}&size=${size}`)
+  const { p = 1, size = 10, type } = params
+  const typeParam = type != null ? `&type=${type}` : ''
+  const res = await api.get(`/api/token/?p=${p}&size=${size}${typeParam}`)
   return res.data
 }
 
@@ -45,12 +46,13 @@ export async function getApiKeys(
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', p, size } = params
+  const { keyword = '', token = '', p, size, type } = params
   const queryParams = new URLSearchParams()
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
+  if (type != null) queryParams.set('type', String(type))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
   return res.data
 }
@@ -123,5 +125,69 @@ export async function fetchTokenKeysBatch(ids: number[]): Promise<{
   data?: { keys: Record<number, string> }
 }> {
   const res = await api.post('/api/token/batch/keys', { ids })
+  return res.data
+}
+
+// ============================================================================
+// Derouter API Keys
+// ============================================================================
+
+export interface CreateDerouterKeyPayload {
+  channel_id: number
+  name: string
+  label?: string
+}
+
+export interface CreateDerouterKeyResponse {
+  success: boolean
+  message?: string
+  data?: {
+    id: number
+    name: string
+    key: string
+    sub_key: string
+    key_id: string
+    type: number
+    channel: string
+  }
+}
+
+export interface DerouterChannelOption {
+  id: number
+  name: string
+}
+
+// List enabled derouter channels available for key provisioning.
+export async function getDerouterChannels(): Promise<
+  ApiResponse<DerouterChannelOption[]>
+> {
+  const res = await api.get('/api/token/derouter/channels')
+  return res.data
+}
+
+// Provision a derouter sub-key on the given channel and create a derouter token.
+export async function createDerouterKey(
+  payload: CreateDerouterKeyPayload
+): Promise<CreateDerouterKeyResponse> {
+  const res = await api.post('/api/token/derouter', payload)
+  return res.data
+}
+
+// Delete a derouter token: deletes the upstream sub-key then the local record.
+export async function deleteDerouterKey(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/token/derouter/${id}`)
+  return res.data
+}
+
+// Fetch upstream usage logs for a derouter token's sub-key.
+export async function getDerouterKeyUsage(
+  id: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<{ success: boolean; message?: string; upstream_status?: number }> {
+  const queryParams = new URLSearchParams()
+  if (params.page != null) queryParams.set('page', String(params.page))
+  if (params.limit != null) queryParams.set('limit', String(params.limit))
+  const qs = queryParams.toString()
+  const res = await api.get(`/api/token/derouter/${id}/usage${qs ? `?${qs}` : ''}`)
   return res.data
 }

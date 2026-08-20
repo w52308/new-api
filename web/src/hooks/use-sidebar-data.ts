@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BarChart3,
   Box,
   CreditCard,
   FileText,
@@ -96,6 +97,24 @@ export function useSidebarData(): SidebarData {
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
+          },
+        ],
+      },
+      {
+        id: 'derouter',
+        title: t('Derouter'),
+        items: [
+          {
+            title: t('Derouter API Keys'),
+            url: '/derouter-keys',
+            icon: Key,
+            requiredRole: ROLE.DEROUTER_VIEWER,
+          },
+          {
+            title: t('AI Usage Statistics'),
+            url: '/derouter-usage',
+            icon: BarChart3,
+            requiredRole: ROLE.DEROUTER_VIEWER,
           },
         ],
       },

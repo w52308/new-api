@@ -119,12 +119,13 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	typeFilter := tokenTypeQuery(c)
+	tokens, err := model.GetAllUserTokensByType(userId, typeFilter, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	total, _ := model.CountUserTokens(userId)
+	total, _ := model.CountUserTokensByType(userId, typeFilter)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
@@ -134,10 +135,11 @@ func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
+	typeFilter := tokenTypeQuery(c)
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokensByType(userId, keyword, token, typeFilter, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -145,6 +147,20 @@ func SearchTokens(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
+}
+
+// tokenTypeQuery reads the optional "type" query param. Absent or invalid values
+// fall back to -1 (all types).
+func tokenTypeQuery(c *gin.Context) int {
+	raw := c.Query("type")
+	if raw == "" {
+		return -1
+	}
+	t, err := strconv.Atoi(raw)
+	if err != nil || t < 0 {
+		return -1
+	}
+	return t
 }
 
 func GetToken(c *gin.Context) {
@@ -343,7 +359,22 @@ func AddToken(c *gin.Context) {
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
-	err := model.DeleteTokenById(id, userId)
+	token, err := model.GetTokenByIds(id, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token == nil {
+		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
+		return
+	}
+	// Derouter tokens own an upstream sub-key: deleting them must also delete
+	// the upstream sub-key, so route to the derouter-aware delete.
+	if token.Type == common.TokenTypeDerouter {
+		DeleteDerouterToken(c)
+		return
+	}
+	err = model.DeleteTokenById(id, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

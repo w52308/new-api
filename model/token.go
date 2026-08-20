@@ -29,8 +29,9 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
-	DerouterSubKey     string         `json:"-" gorm:"type:text;column:derouter_sub_key"`
+	Type               int            `json:"type" gorm:"type:int;default:0;index"`
 	DerouterChannelID  int            `json:"-" gorm:"type:int;column:derouter_channel_id"`
+	DerouterSubKeyID   string         `json:"-" gorm:"type:varchar(128);column:derouter_sub_key_id"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
@@ -106,9 +107,19 @@ func (token *Token) GetIpLimits() []string {
 }
 
 func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
+	return GetAllUserTokensByType(userId, -1, startIdx, num)
+}
+
+// GetAllUserTokensByType lists the user's tokens, optionally filtered by token
+// type. Pass typeFilter = -1 to include all types, or one of the TokenType*
+// constants (e.g. TokenTypeDerouter) to narrow.
+func GetAllUserTokensByType(userId int, typeFilter int, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
-	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	query := DB.Where("user_id = ?", userId)
+	if typeFilter >= 0 {
+		query = query.Where("type = ?", typeFilter)
+	}
+	err := query.Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -159,6 +170,12 @@ func validateLikePattern(input string) error {
 const searchHardLimit = 100
 
 func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+	return SearchUserTokensByType(userId, keyword, token, -1, offset, limit)
+}
+
+// SearchUserTokensByType is SearchUserTokens with an optional token type filter
+// (typeFilter = -1 to include all types).
+func SearchUserTokensByType(userId int, keyword string, token string, typeFilter int, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -186,6 +203,9 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	}
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	if typeFilter >= 0 {
+		baseQuery = baseQuery.Where("type = ?", typeFilter)
+	}
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -438,8 +458,18 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination
 func CountUserTokens(userId int) (int64, error) {
+	return CountUserTokensByType(userId, -1)
+}
+
+// CountUserTokensByType counts the user's tokens, optionally filtered by type
+// (typeFilter = -1 to count all types).
+func CountUserTokensByType(userId int, typeFilter int) (int64, error) {
 	var total int64
-	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
+	query := DB.Model(&Token{}).Where("user_id = ?", userId)
+	if typeFilter >= 0 {
+		query = query.Where("type = ?", typeFilter)
+	}
+	err := query.Count(&total).Error
 	return total, err
 }
 

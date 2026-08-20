@@ -34,16 +34,18 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	require.NoError(t, Init(db))
 
 	// root is a superuser role and is granted everything implicitly, so only the
-	// admin baseline is written as explicit policy rows.
+	// admin and derouter_viewer baselines are written as explicit policy rows.
 	var count int64
 	require.NoError(t, db.Model(&model.CasbinRule{}).Count(&count).Error)
-	assert.Equal(t, int64(len(PermissionsForRole(BuiltInRoleAdmin))), count)
+	assert.Equal(t, int64(len(PermissionsForRole(BuiltInRoleAdmin))+
+		len(PermissionsForRole(BuiltInRoleDerouterViewer))), count)
 
 	var roles []model.AuthzRole
 	require.NoError(t, db.Order("sort asc").Find(&roles).Error)
-	require.Len(t, roles, 2)
+	require.Len(t, roles, 3)
 	assert.Equal(t, BuiltInRoleRoot, roles[0].Key)
 	assert.Equal(t, BuiltInRoleAdmin, roles[1].Key)
+	assert.Equal(t, BuiltInRoleDerouterViewer, roles[2].Key)
 
 	assert.True(t, Can(1, common.RoleRootUser, ChannelSensitiveWrite))
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelRead))
@@ -51,6 +53,19 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelWrite))
 	assert.False(t, Can(2, common.RoleAdminUser, ChannelSensitiveWrite))
 	assert.False(t, Can(3, common.RoleCommonUser, ChannelRead))
+
+	// admin can fully manage derouter keys (create/delete), while the derouter
+	// viewer role is read-only on keys but can still read usage statistics.
+	assert.True(t, Can(2, common.RoleAdminUser, DerouterKeyRead))
+	assert.True(t, Can(2, common.RoleAdminUser, DerouterKeyWrite))
+	assert.True(t, Can(2, common.RoleAdminUser, DerouterUsageRead))
+	assert.False(t, Can(3, common.RoleCommonUser, DerouterKeyRead))
+
+	// derouter viewer role: derouter resources allowed, channel denied.
+	assert.True(t, Can(4, common.RoleDerouterViewer, DerouterKeyRead))
+	assert.True(t, Can(4, common.RoleDerouterViewer, DerouterUsageRead))
+	assert.False(t, Can(4, common.RoleDerouterViewer, DerouterKeyWrite))
+	assert.False(t, Can(4, common.RoleDerouterViewer, ChannelRead))
 }
 
 func TestInitOnSlaveOnlyLoadsPolicies(t *testing.T) {
@@ -105,6 +120,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionSensitiveWrite: true,
 			ActionSecretView:     false,
 		},
+		ResourceDerouter: {
+			ActionKeyRead:   true,
+			ActionKeyWrite:  true,
+			ActionUsageRead: true,
+		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
@@ -132,6 +152,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionWrite:          true,
 			ActionSensitiveWrite: false,
 			ActionSecretView:     false,
+		},
+		ResourceDerouter: {
+			ActionKeyRead:   true,
+			ActionKeyWrite:  true,
+			ActionUsageRead: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))

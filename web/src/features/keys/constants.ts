@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type StatusBadgeProps } from '@/components/status-badge'
+import type { StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
 // API Key Status Configuration
@@ -71,6 +71,20 @@ export const API_KEY_STATUS_OPTIONS = Object.values(API_KEY_STATUSES).map(
 // ============================================================================
 
 export const DEFAULT_GROUP = '' as const
+
+// ============================================================================
+// Key formatting
+// ============================================================================
+
+/**
+ * Builds the full user-facing key for display/copy. Ordinary token keys are
+ * stored without the `sk-` prefix; derouter keys are stored with it (they are
+ * the upstream sub-key verbatim), so only prepend `sk-` when it is absent.
+ */
+export function formatFullKey(key: string): string {
+  if (!key) return key
+  return key.startsWith('sk-') ? key : `sk-${key}`
+}
 
 // ============================================================================
 // Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)

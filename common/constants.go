@@ -176,14 +176,15 @@ const (
 )
 
 const (
-	RoleGuestUser  = 0
-	RoleCommonUser = 1
-	RoleAdminUser  = 10
-	RoleRootUser   = 100
+	RoleGuestUser       = 0
+	RoleCommonUser      = 1
+	RoleDerouterViewer  = 2
+	RoleAdminUser       = 10
+	RoleRootUser        = 100
 )
 
 func IsValidateRole(role int) bool {
-	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
+	return role == RoleGuestUser || role == RoleCommonUser || role == RoleDerouterViewer || role == RoleAdminUser || role == RoleRootUser
 }
 
 var (
@@ -232,6 +233,11 @@ const (
 	TokenStatusDisabled  = 2 // also don't use 0
 	TokenStatusExpired   = 3
 	TokenStatusExhausted = 4
+)
+
+const (
+	TokenTypeNormal   = 0 // 普通 API 密钥
+	TokenTypeDerouter = 1 // Derouter API 密钥（Key = sub-key 本身）
 )
 
 const (

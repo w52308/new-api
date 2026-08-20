@@ -1,8 +1,9 @@
 package authz
 
 const (
-	BuiltInRoleRoot  = "root"
-	BuiltInRoleAdmin = "admin"
+	BuiltInRoleRoot            = "root"
+	BuiltInRoleAdmin           = "admin"
+	BuiltInRoleDerouterViewer  = "derouter_viewer"
 )
 
 // RoleSpec describes a role. A superuser role is allowed every permission
@@ -32,6 +33,14 @@ var builtInRoles = []RoleSpec{
 		BuiltIn:     true,
 		Superuser:   false,
 		Sort:        10,
+	},
+	{
+		Key:         BuiltInRoleDerouterViewer,
+		Name:        "Derouter Viewer",
+		Description: "Built-in derouter viewer authorization role",
+		BuiltIn:     true,
+		Superuser:   false,
+		Sort:        20,
 	},
 }
 

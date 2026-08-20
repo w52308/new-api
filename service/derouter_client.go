@@ -78,9 +78,13 @@ type DerouterCreateSubKeyPayload struct {
 }
 
 // DerouterUpdateSubKeyPayload is the typed input for PUT /sub-keys/:id.
+// Recharge uses AddBudgetVirtual (positive adds budget); deduction uses
+// ReduceBudgetVirtual (positive reduces budget). The upstream ignores negative
+// AddBudgetVirtual, so reduction must go through ReduceBudgetVirtual.
 type DerouterUpdateSubKeyPayload struct {
-	Label             string  `json:"label,omitempty"`
-	RPMLimit          int     `json:"rpmLimit,omitempty"`
-	AddBudgetVirtual  float64 `json:"addBudgetVirtual,omitempty"`
-	DisplayMultiplier float64 `json:"displayMultiplier,omitempty"`
+	Label               string  `json:"label,omitempty"`
+	RPMLimit            int     `json:"rpmLimit,omitempty"`
+	AddBudgetVirtual    float64 `json:"addBudgetVirtual,omitempty"`
+	ReduceBudgetVirtual float64 `json:"reduceBudgetVirtual,omitempty"`
+	DisplayMultiplier   float64 `json:"displayMultiplier,omitempty"`
 }

@@ -39,6 +39,7 @@ const baseApiKey: ApiKey = {
   name: 'test',
   key: 'sk-test',
   status: 1,
+  type: 0,
   remain_quota: 0,
   used_quota: 0,
   unlimited_quota: true,

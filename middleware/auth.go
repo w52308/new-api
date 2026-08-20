@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -276,10 +277,28 @@ func TokenOrUserAuth() func(c *gin.Context) {
 // 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
 // 即使令牌已过期、已耗尽或已禁用，也允许访问。
 // 仍然检查用户是否被封禁。
+// resolveTokenKeyCandidates returns, in priority order, the token keys to try
+// for a raw bearer credential (after stripping the "Bearer " prefix but before
+// any "sk-" normalization). It supports three shapes:
+//
+//  1. a full derouter sub-key stored verbatim as token.Key ("sk-ant-...");
+//  2. a normal new-api key with the "sk-" prefix stripped ("<48 chars>");
+//  3. the legacy "sk-<key>-<channel>" channel-pinned form (first segment).
+//
+// The returned parts are the "-"-split form of the "sk-"-stripped key, used by
+// callers for legacy channel pinning; they must NOT be used as a channel id for
+// derouter tokens.
+func resolveTokenKeyCandidates(rawKey string) ([]string, []string) {
+	stripped := strings.TrimPrefix(rawKey, "sk-")
+	parts := strings.Split(stripped, "-")
+	candidates := []string{rawKey, stripped, parts[0]}
+	return candidates, parts
+}
+
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		key := c.Request.Header.Get("Authorization")
-		if key == "" {
+		rawKey := c.Request.Header.Get("Authorization")
+		if rawKey == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgTokenNotProvided),
@@ -287,15 +306,25 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
-			key = strings.TrimSpace(key[7:])
+		if strings.HasPrefix(rawKey, "Bearer ") || strings.HasPrefix(rawKey, "bearer ") {
+			rawKey = strings.TrimSpace(rawKey[7:])
 		}
-		key = strings.TrimPrefix(key, "sk-")
-		parts := strings.Split(key, "-")
-		key = parts[0]
 
-		token, err := model.GetTokenByKey(key, false)
-		if err != nil {
+		// Try candidates in order: full value (derouter sub-key), "sk-"-stripped
+		// value (normal key), then the first "-"-segment (legacy channel-pinned).
+		candidates, _ := resolveTokenKeyCandidates(rawKey)
+		var token *model.Token
+		var err error
+		for _, candidate := range candidates {
+			if candidate == "" {
+				continue
+			}
+			token, err = model.GetTokenByKey(candidate, false)
+			if err == nil {
+				break
+			}
+		}
+		if token == nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"success": false,
@@ -345,9 +374,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
 		c.Set("token_key", token.Key)
-		if token.DerouterSubKey != "" {
-			c.Set(string(constant.ContextKeyTokenDerouterSubKey), token.DerouterSubKey)
-		}
+		setTokenDerouterContext(c, token)
 		c.Next()
 	}
 }
@@ -391,25 +418,32 @@ func TokenAuth() func(c *gin.Context) {
 				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)
 			}
 		}
-		key := c.Request.Header.Get("Authorization")
+		rawKey := c.Request.Header.Get("Authorization")
 		parts := make([]string, 0)
-		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
-			key = strings.TrimSpace(key[7:])
+		if strings.HasPrefix(rawKey, "Bearer ") || strings.HasPrefix(rawKey, "bearer ") {
+			rawKey = strings.TrimSpace(rawKey[7:])
 		}
-		if key == "" || key == "midjourney-proxy" {
-			key = c.Request.Header.Get("mj-api-secret")
-			if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
-				key = strings.TrimSpace(key[7:])
+		if rawKey == "" || rawKey == "midjourney-proxy" {
+			rawKey = c.Request.Header.Get("mj-api-secret")
+			if strings.HasPrefix(rawKey, "Bearer ") || strings.HasPrefix(rawKey, "bearer ") {
+				rawKey = strings.TrimSpace(rawKey[7:])
 			}
-			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
-		} else {
-			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
 		}
-		token, err := model.ValidateUserToken(key)
+		// Try candidates in order: full value (derouter sub-key), "sk-"-stripped
+		// value (normal key), then the first "-"-segment (legacy channel-pinned).
+		candidates, candidateParts := resolveTokenKeyCandidates(rawKey)
+		var token *model.Token
+		var err error
+		for _, candidate := range candidates {
+			if candidate == "" {
+				continue
+			}
+			token, err = model.ValidateUserToken(candidate)
+			if token != nil {
+				parts = candidateParts
+				break
+			}
+		}
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {
@@ -494,9 +528,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	c.Set("token_id", token.Id)
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)
-	if token.DerouterSubKey != "" {
-		c.Set(string(constant.ContextKeyTokenDerouterSubKey), token.DerouterSubKey)
-	}
+	setTokenDerouterContext(c, token)
 	c.Set("token_unlimited_quota", token.UnlimitedQuota)
 	if !token.UnlimitedQuota {
 		c.Set("token_quota", token.RemainQuota)
@@ -519,6 +551,11 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 			common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, autoGroups)
 		}
 	}
+	// Derouter tokens are pinned to their channel by the system; the "-" in the
+	// sub-key must never be interpreted as a user-specified channel id.
+	if token.Type == common.TokenTypeDerouter {
+		return nil
+	}
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {
 			c.Set("specific_channel_id", parts[1])
@@ -529,4 +566,19 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		}
 	}
 	return nil
+}
+
+// setTokenDerouterContext threads a derouter token's relay credential and
+// pinned channel into the gin context so the distributor routes the request to
+// the owning channel and the derouter adapter authenticates with the sub-key.
+func setTokenDerouterContext(c *gin.Context, token *model.Token) {
+	if token == nil || token.Type != common.TokenTypeDerouter {
+		return
+	}
+	if token.Key != "" {
+		c.Set(string(constant.ContextKeyTokenDerouterSubKey), token.Key)
+	}
+	if token.DerouterChannelID > 0 {
+		c.Set(string(constant.ContextKeyTokenSpecificChannelId), strconv.Itoa(token.DerouterChannelID))
+	}
 }

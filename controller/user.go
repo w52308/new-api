@@ -1001,14 +1001,9 @@ func DeleteSelf(c *gin.Context) {
 }
 
 func CreateUser(c *gin.Context) {
-	// createUserRequest wraps the user fields plus the optional derouter channel
-	// selection used to provision a derouter sub-key as this user's relay token.
-	var req struct {
-		model.User
-		DerouterChannelID int `json:"derouter_channel_id"`
-	}
+	var req model.User
 	err := common.DecodeJson(c.Request.Body, &req)
-	user := req.User
+	user := req
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
@@ -1042,36 +1037,6 @@ func CreateUser(c *gin.Context) {
 		authzTouched = touched
 		if err != nil {
 			return err
-		}
-		// 若请求指定了 derouter 渠道，则在同一个事务内创建 derouter sub-key 并
-		// 把它作为该用户的一个 API token：token.Key 用 new-api 自生成的 48 位 key，
-		// sub-key 值存入 token 的 DerouterSubKey 字段，relay 转发时用它鉴权。
-		// sub-key 或 token 创建失败则整个用户创建回滚，避免"有用户但无 sub-key"的中间态。
-		if req.DerouterChannelID > 0 {
-			subKey, err := service.ProvisionDerouterSubKey(c.Request.Context(), req.DerouterChannelID, cleanUser.Username)
-			if err != nil {
-				return err
-			}
-			tokenKey, err := common.GenerateKey()
-			if err != nil {
-				return err
-			}
-			token := model.Token{
-				UserId:            cleanUser.Id,
-				Name:              cleanUser.Username + " 的 Derouter Token",
-				Key:               tokenKey,
-				CreatedTime:       common.GetTimestamp(),
-				AccessedTime:      common.GetTimestamp(),
-				ExpiredTime:       -1,
-				RemainQuota:       common.QuotaForNewUser,
-				UnlimitedQuota:    true,
-				Group:             "default",
-				DerouterSubKey:    subKey,
-				DerouterChannelID: req.DerouterChannelID,
-			}
-			if err := tx.Create(&token).Error; err != nil {
-				return err
-			}
 		}
 		return nil
 	}); err != nil {
