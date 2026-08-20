@@ -23,8 +23,10 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { Skeleton } from '@/components/ui/skeleton'
 import dayjs from '@/lib/dayjs'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { getDerouterKeyUsage, getDerouterKeys } from './api'
+import { getAllDerouterKeys, getDerouterKeyUsage, getDerouterKeys } from './api'
 import { formatFullKey } from '@/features/keys/constants'
 
 function UsageTable({ tokenId }: { tokenId: number }) {
@@ -122,10 +124,15 @@ function extractUsageRows(payload: unknown): unknown[] {
 export function DerouterUsage() {
   const { t } = useTranslation()
   const [selectedId, setSelectedId] = useState(0)
+  const user = useAuthStore((s) => s.auth.user)
+  const isAdmin = Boolean(user && (user.role ?? 0) >= ROLE.ADMIN)
 
   const { data: keysRes, isLoading } = useQuery({
-    queryKey: ['derouter-keys', 1],
-    queryFn: () => getDerouterKeys({ p: 1, size: 100 }),
+    queryKey: ['derouter-keys', 1, isAdmin],
+    queryFn: () =>
+      isAdmin
+        ? getAllDerouterKeys({ p: 1, size: 100 })
+        : getDerouterKeys({ p: 1, size: 100 }),
   })
   const keys = (keysRes?.data?.items ?? []) as Array<{
     id: number

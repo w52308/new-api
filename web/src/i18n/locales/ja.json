@@ -5373,6 +5373,8 @@
     "Spent": "Spent",
     "No usage data": "No usage data",
     "Failed to load usage statistics": "Failed to load usage statistics",
-    "Select a Derouter API key": "Select a Derouter API key"
+    "Select a Derouter API key": "Select a Derouter API key",
+    "Budget:": "Budget:",
+    "Spent:": "Spent:"
   }
 }

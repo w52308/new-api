@@ -170,6 +170,53 @@ func TestDeleteDerouterTokenDeletesUpstreamSubKey(t *testing.T) {
 	require.Zero(t, count, "local token must be removed")
 }
 
+// TestDeleteDerouterTokenAdminCrossUser verifies an admin can delete a derouter
+// token that was bound to another user at creation time.
+func TestDeleteDerouterTokenAdminCrossUser(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer srv.Close()
+	previousBaseURL := service.DefaultDerouterMgmtBaseURL
+	service.DefaultDerouterMgmtBaseURL = srv.URL
+	t.Cleanup(func() { service.DefaultDerouterMgmtBaseURL = previousBaseURL })
+
+	ch := seedDerouterChannel(t, db)
+	// Token owned by user 202; admin (id 101) deletes it.
+	tok := seedDerouterToken(t, db, ch, 202, "bound-to-other", "subkey-cross-user")
+
+	c, recorder := newDerouterTokenTestContextWithRole(http.MethodDelete, "/api/token/derouter/"+strconv.Itoa(tok.Id), "", 101, common.RoleAdminUser)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tok.Id)}}
+	DeleteDerouterToken(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var count int64
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", tok.Id).Count(&count).Error)
+	require.Zero(t, count, "admin must be able to delete a token bound to another user")
+}
+
+// TestDeleteDerouterTokenNonAdminCrossUserRejected verifies a non-admin cannot
+// delete another user's derouter token.
+func TestDeleteDerouterTokenNonAdminCrossUserRejected(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	ch := seedDerouterChannel(t, db)
+	tok := seedDerouterToken(t, db, ch, 202, "other-delete", "subkey-other-delete")
+
+	c, recorder := newDerouterTokenTestContextWithRole(http.MethodDelete, "/api/token/derouter/"+strconv.Itoa(tok.Id), "", 101, common.RoleCommonUser)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tok.Id)}}
+	DeleteDerouterToken(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.False(t, resp.Success)
+}
+
 func TestGetAllTokensTypeFilter(t *testing.T) {
 	db := setupDerouterTokenTestDB(t)
 	require.NoError(t, db.Create(&model.Token{
@@ -602,6 +649,37 @@ func TestGetAllDerouterTokensAdminSeesAll(t *testing.T) {
 		require.Contains(t, item.Key, "***")
 		require.NotContains(t, item.Key, "sk-ant-")
 	}
+}
+
+// TestGetAllDerouterTokensAdminSearch verifies the admin list supports keyword
+// name search, matching the API keys page's Filter-by-name behavior.
+func TestGetAllDerouterTokensAdminSearch(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	ch := seedDerouterChannel(t, db)
+	seedDerouterToken(t, db, ch, 101, "alpha-key", "subkey-alpha")
+	seedDerouterToken(t, db, ch, 101, "beta-key", "subkey-beta")
+	seedDerouterToken(t, db, ch, 101, "gamma", "subkey-gamma")
+
+	c, recorder := newDerouterTokenTestContextWithRole(http.MethodGet, "/api/token/derouter/all?p=1&size=20", "", 101, common.RoleAdminUser)
+	c.Request.URL.RawQuery = "p=1&size=20&keyword=key"
+	GetAllDerouterTokens(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Data struct {
+			Total int `json:"total"`
+			Items []struct {
+				Name string `json:"name"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 2, resp.Data.Total)
+	var names []string
+	for _, item := range resp.Data.Items {
+		names = append(names, item.Name)
+	}
+	require.ElementsMatch(t, []string{"alpha-key", "beta-key"}, names)
 }
 
 // TestGetAllDerouterTokensNonAdminOwnOnly verifies a non-admin list is scoped

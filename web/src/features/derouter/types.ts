@@ -37,6 +37,9 @@ export interface DerouterKeyListItem extends DerouterKey {
   user_id?: number
   username?: string
   display_name?: string
+  // Live upstream budget state, enriched by the list endpoint (one sub-keys
+  // call per channel). Absent when the upstream read failed.
+  balance?: DerouterKeyBalance
 }
 
 export interface DerouterChannelOption {

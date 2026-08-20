@@ -148,27 +148,6 @@ func CreateDerouterToken(c *gin.Context) {
 	})
 }
 
-// loadOwnedDerouterToken loads a token by id that belongs to the current user
-// and is a derouter token, returning it plus the owning derouter channel.
-func loadOwnedDerouterToken(c *gin.Context) (*model.Token, *model.Channel, string, bool) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return nil, nil, "", false
-	}
-	token, err := model.GetTokenByIds(id, c.GetInt("id"))
-	if err != nil || token == nil {
-		return nil, nil, "", false
-	}
-	if token.Type != common.TokenTypeDerouter {
-		return nil, nil, "", false
-	}
-	ch, accountKey, ok := loadDerouterChannelById(token.DerouterChannelID)
-	if !ok {
-		return nil, nil, "", false
-	}
-	return token, ch, accountKey, true
-}
-
 // loadDerouterTokenForUser loads a derouter token by id. Admins may operate on
 // any user's token; everyone else is restricted to their own.
 func loadDerouterTokenForUser(c *gin.Context) (*model.Token, *model.Channel, string, bool) {
@@ -198,7 +177,7 @@ func loadDerouterTokenForUser(c *gin.Context) (*model.Token, *model.Channel, str
 // then removes the local token record. If the upstream deletion fails, the local
 // record is still removed so the app never holds a stale sub-key.
 func DeleteDerouterToken(c *gin.Context) {
-	token, ch, accountKey, ok := loadOwnedDerouterToken(c)
+	token, ch, accountKey, ok := loadDerouterTokenForUser(c)
 	if !ok {
 		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
 		return
@@ -215,18 +194,26 @@ func DeleteDerouterToken(c *gin.Context) {
 		}
 	}
 
-	if err := model.DeleteTokenById(token.Id, c.GetInt("id")); err != nil {
-		common.ApiError(c, err)
+	var delErr error
+	if c.GetInt("role") >= common.RoleAdminUser {
+		// Admins may delete keys they bound to other users at creation time.
+		delErr = model.DeleteTokenByIdAdmin(token.Id)
+	} else {
+		delErr = model.DeleteTokenById(token.Id, c.GetInt("id"))
+	}
+	if delErr != nil {
+		common.ApiError(c, delErr)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
-// GetDerouterTokenKey returns the full derouter sub-key for a token owned by the
-// current user. The list endpoint always masks keys; this explicit read lets a
-// viewer fetch the plaintext key on demand (shown once per click).
+// GetDerouterTokenKey returns the full derouter sub-key for a token the current
+// user may access. The list endpoint always masks keys; this explicit read lets
+// a viewer fetch the plaintext key on demand (shown once per click). Admins may
+// read keys they bound to other users.
 func GetDerouterTokenKey(c *gin.Context) {
-	token, _, _, ok := loadOwnedDerouterToken(c)
+	token, _, _, ok := loadDerouterTokenForUser(c)
 	if !ok {
 		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
 		return
@@ -244,7 +231,7 @@ func GetDerouterTokenKey(c *gin.Context) {
 // GetDerouterTokenUsage returns the upstream usage logs for a derouter token's
 // sub-key. Data is fetched live from derouter; nothing is persisted locally.
 func GetDerouterTokenUsage(c *gin.Context) {
-	token, _, _, ok := loadOwnedDerouterToken(c)
+	token, _, _, ok := loadDerouterTokenForUser(c)
 	if !ok {
 		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
 		return
@@ -402,7 +389,8 @@ func GetDerouterTokenBalance(c *gin.Context) {
 
 // GetAllDerouterTokens lists derouter tokens. Admins see every user's keys (so
 // they can manage keys they bound at creation time); everyone else only sees
-// their own. Keys are always masked.
+// their own. Keys are always masked. Each item carries live upstream balance
+// (batch-enriched per channel) plus the owning user's names for the admin view.
 func GetAllDerouterTokens(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	var tokens []*model.Token
@@ -410,6 +398,9 @@ func GetAllDerouterTokens(c *gin.Context) {
 
 	if c.GetInt("role") >= common.RoleAdminUser {
 		query := model.DB.Model(&model.Token{}).Where("type = ?", common.TokenTypeDerouter)
+		if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+			query = query.Where("name like ?", "%"+keyword+"%")
+		}
 		if err := query.Count(&total).Error; err != nil {
 			common.ApiError(c, err)
 			return
@@ -420,20 +411,143 @@ func GetAllDerouterTokens(c *gin.Context) {
 		}
 	} else {
 		userId := c.GetInt("id")
+		keyword := strings.TrimSpace(c.Query("keyword"))
 		var err error
-		tokens, err = model.GetAllUserTokensByType(userId, common.TokenTypeDerouter, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		tokens, total, err = model.SearchUserTokensByType(userId, keyword, "", common.TokenTypeDerouter, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		total, _ = model.CountUserTokensByType(userId, common.TokenTypeDerouter)
 	}
 
-	items := make([]*tokenResponse, 0, len(tokens))
+	// Attach live upstream budget state and owner names to each row so the
+	// derouter keys table can show Status/Budget/Owner columns like the API keys
+	// page. Balance enrichment is best-effort: a failed upstream read leaves the
+	// field unset rather than failing the whole list.
+	balances := fetchDerouterListBalances(c, tokens)
+	owners := fetchDerouterListOwners(tokens)
+
+	items := make([]*derouterTokenListItem, 0, len(tokens))
 	for _, token := range tokens {
-		items = append(items, buildMaskedTokenResponse(token))
+		item := &derouterTokenListItem{tokenResponse: buildMaskedTokenResponse(token)}
+		if balance, ok := balances[token.Id]; ok {
+			item.Balance = &balance
+		}
+		if owner, ok := owners[token.UserId]; ok {
+			item.Username = owner.Username
+			item.DisplayName = owner.DisplayName
+		}
+		items = append(items, item)
 	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
+}
+
+// derouterTokenListItem extends the standard masked token response with the
+// live upstream sub-key balance and the owning user's display names, so the
+// derouter keys table can show Status/Budget/Owner columns like the API keys
+// page. Balance is omitted when the upstream read fails.
+type derouterTokenListItem struct {
+	*tokenResponse
+	Balance     *derouterSubKeyBalance `json:"balance,omitempty"`
+	Username    string                 `json:"username,omitempty"`
+	DisplayName string                 `json:"display_name,omitempty"`
+}
+
+// fetchDerouterListBalances enriches derouter tokens with their live upstream
+// sub-key budget in one call per owning channel. The account-authed
+// GET /sub-keys endpoint returns every sub-key under a channel (including
+// budgetVirtual/spentVirtual/remainingVirtual), so we can avoid N+1. The
+// returned map is keyed by token id.
+func fetchDerouterListBalances(c *gin.Context, tokens []*model.Token) map[int]derouterSubKeyBalance {
+	// Group tokens by owning channel, then load each channel's sub-keys once.
+	channelIds := make(map[int][]*model.Token)
+	for _, token := range tokens {
+		if token.DerouterChannelID > 0 {
+			channelIds[token.DerouterChannelID] = append(channelIds[token.DerouterChannelID], token)
+		}
+	}
+	balances := make(map[int]derouterSubKeyBalance)
+	client := service.NewDerouterMgmtClient()
+	for channelID, channelTokens := range channelIds {
+		ch, err := model.GetChannelById(channelID, true)
+		if err != nil || ch == nil || ch.Type != constant.ChannelTypeDerouter {
+			continue
+		}
+		accountKey := strings.TrimSpace(ch.Key)
+		if accountKey == "" {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+		code, body, err := service.DerouterListSubKeys(ctx, client, service.DerouterMgmtBaseURL(""), accountKey)
+		cancel()
+		if err != nil || code < 200 || code >= 300 {
+			continue
+		}
+		var resp struct {
+			Data struct {
+				SubKeys []struct {
+					ID               string  `json:"id"`
+					BudgetVirtual    float64 `json:"budgetVirtual"`
+					SpentVirtual     float64 `json:"spentVirtual"`
+					RemainingVirtual float64 `json:"remainingVirtual"`
+				} `json:"subKeys"`
+			} `json:"data"`
+			SubKeys []struct {
+				ID               string  `json:"id"`
+				BudgetVirtual    float64 `json:"budgetVirtual"`
+				SpentVirtual     float64 `json:"spentVirtual"`
+				RemainingVirtual float64 `json:"remainingVirtual"`
+			} `json:"subKeys"`
+		}
+		if err := common.Unmarshal(body, &resp); err != nil {
+			continue
+		}
+		subKeys := resp.SubKeys
+		if len(subKeys) == 0 {
+			subKeys = resp.Data.SubKeys
+		}
+		byID := make(map[string]derouterSubKeyBalance, len(subKeys))
+		for _, sub := range subKeys {
+			byID[sub.ID] = derouterSubKeyBalance{
+				BudgetVirtual:    sub.BudgetVirtual,
+				SpentVirtual:     sub.SpentVirtual,
+				RemainingVirtual: sub.RemainingVirtual,
+			}
+		}
+		for _, token := range channelTokens {
+			if balance, ok := byID[token.DerouterSubKeyID]; ok {
+				balances[token.Id] = balance
+			}
+		}
+	}
+	return balances
+}
+
+// fetchDerouterListOwners maps user id -> user for the owners of the listed
+// derouter tokens, so the admin view can show a friendly Owner name.
+func fetchDerouterListOwners(tokens []*model.Token) map[int]*model.User {
+	ids := make(map[int]struct{}, len(tokens))
+	for _, token := range tokens {
+		if token.UserId > 0 {
+			ids[token.UserId] = struct{}{}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	idList := make([]int, 0, len(ids))
+	for id := range ids {
+		idList = append(idList, id)
+	}
+	var users []*model.User
+	if err := model.DB.Where("id IN ?", idList).Find(&users).Error; err != nil {
+		return nil
+	}
+	byID := make(map[int]*model.User, len(users))
+	for _, u := range users {
+		byID[u.Id] = u
+	}
+	return byID
 }

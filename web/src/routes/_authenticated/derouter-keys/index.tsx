@@ -17,12 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
 
 import { DerouterKeys } from '@/features/derouter/derouter-keys'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
+const derouterKeysSearchSchema = z.object({
+  page: z.number().optional().catch(1),
+  pageSize: z.number().optional().catch(undefined),
+  status: z.array(z.string()).optional().catch([]),
+  filter: z.string().optional().catch(''),
+})
+
 export const Route = createFileRoute('/_authenticated/derouter-keys/')({
+  validateSearch: derouterKeysSearchSchema,
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
     if (!auth.user || (auth.user.role ?? 0) < ROLE.DEROUTER_VIEWER) {

@@ -45,6 +45,26 @@ export async function getDerouterKeys(params: {
   return res.data
 }
 
+// Search the current user's derouter API keys by name (type=1).
+export async function searchDerouterKeys(params: {
+  keyword?: string
+  p?: number
+  size?: number
+} = {}): Promise<{
+  success: boolean
+  message?: string
+  data?: { items: unknown[]; total: number }
+}> {
+  const { keyword = '', p = 1, size = 20 } = params
+  const queryParams = new URLSearchParams()
+  if (keyword) queryParams.set('keyword', keyword)
+  queryParams.set('type', '1')
+  if (p != null) queryParams.set('p', String(p))
+  if (size != null) queryParams.set('size', String(size))
+  const res = await api.get(`/api/token/search?${queryParams.toString()}`)
+  return res.data
+}
+
 // List enabled derouter channels for the create dropdown.
 export async function getDerouterChannels(): Promise<
   ApiResponse<DerouterChannelOption[]>
@@ -115,12 +135,17 @@ export async function getDerouterKeyBalance(
 export async function getAllDerouterKeys(params: {
   p?: number
   size?: number
+  keyword?: string
 } = {}): Promise<{
   success: boolean
   message?: string
   data?: { items: unknown[]; total: number }
 }> {
-  const { p = 1, size = 20 } = params
-  const res = await api.get(`/api/token/derouter/all?p=${p}&size=${size}`)
+  const { p = 1, size = 20, keyword = '' } = params
+  const queryParams = new URLSearchParams()
+  queryParams.set('p', String(p))
+  queryParams.set('size', String(size))
+  if (keyword) queryParams.set('keyword', keyword)
+  const res = await api.get(`/api/token/derouter/all?${queryParams.toString()}`)
   return res.data
 }
