@@ -35,7 +35,7 @@ func setupDerouterTokenTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	model.DB, model.LOG_DB = db, db
 	require.NoError(t, db.AutoMigrate(
-		&model.User{}, &model.Channel{}, &model.Token{},
+		&model.User{}, &model.Channel{}, &model.Token{}, &model.Log{},
 		&model.CasbinRule{}, &model.AuthzRole{},
 	))
 	require.NoError(t, authz.Init(db))
@@ -761,4 +761,111 @@ func TestGetDerouterTokenBalanceNonAdminOnOtherToken(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
 	require.False(t, resp.Success)
+}
+
+// auditLogActionParams extracts the op.action and op.params from a Manage log's
+// Other JSON, so tests can assert on the structured audit descriptor.
+func auditLogActionParams(t *testing.T, log model.Log) (action string, params map[string]interface{}) {
+	t.Helper()
+	var other struct {
+		Op struct {
+			Action string                 `json:"action"`
+			Params map[string]interface{} `json:"params"`
+		} `json:"op"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(log.Other), &other))
+	return other.Op.Action, other.Op.Params
+}
+
+// TestCreateDerouterTokenRecordsAuditLog verifies creating a derouter key writes
+// a LogTypeManage audit log owned by the operator.
+func TestCreateDerouterTokenRecordsAuditLog(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"data":{"id":"subkey-audit-1","key":"sk-ant-audit","keyId":"sk-ant-...bkey"}}`)
+	}))
+	defer srv.Close()
+	previousBaseURL := service.DefaultDerouterMgmtBaseURL
+	service.DefaultDerouterMgmtBaseURL = srv.URL
+	t.Cleanup(func() { service.DefaultDerouterMgmtBaseURL = previousBaseURL })
+
+	ch := seedDerouterChannel(t, db)
+	body := fmt.Sprintf(`{"channel_id":%d,"name":"audit-key"}`, ch.Id)
+	c, recorder := newDerouterTokenTestContext(http.MethodPost, "/api/token/derouter", body)
+	CreateDerouterToken(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var logs []model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeManage).Find(&logs).Error)
+	require.Len(t, logs, 1, "create must write exactly one manage log")
+	action, params := auditLogActionParams(t, logs[0])
+	require.Equal(t, "derouter_token.create", action)
+	require.Equal(t, "audit-key", params["name"])
+	require.NotEmpty(t, params["id"])
+	require.Equal(t, ch.Name, params["channel"])
+}
+
+// TestDeleteDerouterTokenRecordsAuditLog verifies deleting a derouter key writes
+// a LogTypeManage audit log.
+func TestDeleteDerouterTokenRecordsAuditLog(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodDelete, r.Method)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer srv.Close()
+	previousBaseURL := service.DefaultDerouterMgmtBaseURL
+	service.DefaultDerouterMgmtBaseURL = srv.URL
+	t.Cleanup(func() { service.DefaultDerouterMgmtBaseURL = previousBaseURL })
+
+	ch := seedDerouterChannel(t, db)
+	tok := seedDerouterToken(t, db, ch, 101, "delete-audit", "subkey-delete-audit")
+
+	c, recorder := newDerouterTokenTestContext(http.MethodDelete, "/api/token/derouter/"+strconv.Itoa(tok.Id), "")
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tok.Id)}}
+	DeleteDerouterToken(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var logs []model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeManage).Find(&logs).Error)
+	require.Len(t, logs, 1, "delete must write exactly one manage log")
+	action, params := auditLogActionParams(t, logs[0])
+	require.Equal(t, "derouter_token.delete", action)
+	require.Equal(t, "delete-audit", params["name"])
+	require.Equal(t, strconv.Itoa(tok.Id), fmt.Sprintf("%v", params["id"]))
+}
+
+// TestUpdateDerouterTokenBudgetRecordsAuditLog verifies adjusting a derouter key
+// budget writes a LogTypeManage audit log carrying the signed amount.
+func TestUpdateDerouterTokenBudgetRecordsAuditLog(t *testing.T) {
+	db := setupDerouterTokenTestDB(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPut, r.Method)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer srv.Close()
+	previousBaseURL := service.DefaultDerouterMgmtBaseURL
+	service.DefaultDerouterMgmtBaseURL = srv.URL
+	t.Cleanup(func() { service.DefaultDerouterMgmtBaseURL = previousBaseURL })
+
+	ch := seedDerouterChannel(t, db)
+	tok := seedDerouterToken(t, db, ch, 101, "budget-audit", "subkey-budget-audit")
+
+	c, recorder := newDerouterTokenTestContext(http.MethodPut, "/api/token/derouter/"+strconv.Itoa(tok.Id)+"/budget", `{"amount":-3}`)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tok.Id)}}
+	UpdateDerouterTokenBudget(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var logs []model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeManage).Find(&logs).Error)
+	require.Len(t, logs, 1, "budget adjust must write exactly one manage log")
+	action, params := auditLogActionParams(t, logs[0])
+	require.Equal(t, "derouter_token.budget_adjust", action)
+	require.Equal(t, "budget-audit", params["name"])
+	require.InDelta(t, -3.0, params["amount"].(float64), 1e-9)
 }

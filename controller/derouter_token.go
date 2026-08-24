@@ -133,6 +133,13 @@ func CreateDerouterToken(c *gin.Context) {
 		return
 	}
 
+	recordManageAuditFor(c, ownerId, "derouter_token.create", map[string]interface{}{
+		"id":         token.Id,
+		"name":       token.Name,
+		"channel_id": ch.Id,
+		"channel":    ch.Name,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -205,6 +212,12 @@ func DeleteDerouterToken(c *gin.Context) {
 		common.ApiError(c, delErr)
 		return
 	}
+	recordManageAuditFor(c, token.UserId, "derouter_token.delete", map[string]interface{}{
+		"id":         token.Id,
+		"name":       token.Name,
+		"channel_id": ch.Id,
+		"channel":    ch.Name,
+	})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
@@ -361,6 +374,11 @@ func UpdateDerouterTokenBudget(c *gin.Context) {
 		})
 		return
 	}
+	recordManageAuditFor(c, token.UserId, "derouter_token.budget_adjust", map[string]interface{}{
+		"id":     token.Id,
+		"name":   token.Name,
+		"amount": amount,
+	})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 

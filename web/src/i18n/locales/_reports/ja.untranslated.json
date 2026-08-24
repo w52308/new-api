@@ -1,7 +1,10 @@
 {
+  "Adjusted derouter API key {{name}} (ID: {{id}}) budget by {{amount}}": "Adjusted derouter API key {{name}} (ID: {{id}}) budget by {{amount}}",
   "Budget": "Budget",
   "Click to view Derouter balance": "Click to view Derouter balance",
   "Create derouter sub-key for this user": "Create derouter sub-key for this user",
+  "Created derouter API key {{name}} (ID: {{id}}) on channel {{channel}}": "Created derouter API key {{name}} (ID: {{id}}) on channel {{channel}}",
+  "Deleted derouter API key {{name}} (ID: {{id}})": "Deleted derouter API key {{name}} (ID: {{id}})",
   "Derouter": "Derouter",
   "Derouter Balance": "Derouter Balance",
   "Derouter Sub-keys": "Derouter Sub-keys",

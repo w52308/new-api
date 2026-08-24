@@ -38,6 +38,7 @@ import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
+import { Route as AuthenticatedDerouterDashboardIndexRouteImport } from './routes/_authenticated/derouter-dashboard/index'
 import { Route as AuthenticatedDerouterKeysIndexRouteImport } from './routes/_authenticated/derouter-keys/index'
 import { Route as AuthenticatedDerouterUsageIndexRouteImport } from './routes/_authenticated/derouter-usage/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -215,6 +216,12 @@ const AuthenticatedDashboardSectionRoute =
   AuthenticatedDashboardSectionRouteImport.update({
     id: '/dashboard/$section',
     path: '/dashboard/$section',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDerouterDashboardIndexRoute =
+  AuthenticatedDerouterDashboardIndexRouteImport.update({
+    id: '/derouter-dashboard/',
+    path: '/derouter-dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDerouterKeysIndexRoute =
@@ -432,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/derouter-dashboard/': typeof AuthenticatedDerouterDashboardIndexRoute
   '/derouter-keys/': typeof AuthenticatedDerouterKeysIndexRoute
   '/derouter-usage/': typeof AuthenticatedDerouterUsageIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -491,6 +499,7 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
+  '/derouter-dashboard': typeof AuthenticatedDerouterDashboardIndexRoute
   '/derouter-keys': typeof AuthenticatedDerouterKeysIndexRoute
   '/derouter-usage': typeof AuthenticatedDerouterUsageIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -554,6 +563,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/_authenticated/derouter-dashboard/': typeof AuthenticatedDerouterDashboardIndexRoute
   '/_authenticated/derouter-keys/': typeof AuthenticatedDerouterKeysIndexRoute
   '/_authenticated/derouter-usage/': typeof AuthenticatedDerouterUsageIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -616,6 +626,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/channels/'
     | '/dashboard/'
+    | '/derouter-dashboard/'
     | '/derouter-keys/'
     | '/derouter-usage/'
     | '/keys/'
@@ -675,6 +686,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/channels'
     | '/dashboard'
+    | '/derouter-dashboard'
     | '/derouter-keys'
     | '/derouter-usage'
     | '/keys'
@@ -737,6 +749,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
+    | '/_authenticated/derouter-dashboard/'
     | '/_authenticated/derouter-keys/'
     | '/_authenticated/derouter-usage/'
     | '/_authenticated/keys/'
@@ -989,6 +1002,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$section'
       fullPath: '/dashboard/$section'
       preLoaderRoute: typeof AuthenticatedDashboardSectionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/derouter-dashboard/': {
+      id: '/_authenticated/derouter-dashboard/'
+      path: '/derouter-dashboard'
+      fullPath: '/derouter-dashboard/'
+      preLoaderRoute: typeof AuthenticatedDerouterDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/derouter-keys/': {
@@ -1304,6 +1324,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedDerouterDashboardIndexRoute: typeof AuthenticatedDerouterDashboardIndexRoute
   AuthenticatedDerouterKeysIndexRoute: typeof AuthenticatedDerouterKeysIndexRoute
   AuthenticatedDerouterUsageIndexRoute: typeof AuthenticatedDerouterUsageIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1329,6 +1350,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+  AuthenticatedDerouterDashboardIndexRoute:
+    AuthenticatedDerouterDashboardIndexRoute,
   AuthenticatedDerouterKeysIndexRoute: AuthenticatedDerouterKeysIndexRoute,
   AuthenticatedDerouterUsageIndexRoute: AuthenticatedDerouterUsageIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,

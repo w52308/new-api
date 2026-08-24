@@ -467,6 +467,12 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   // Logs
   'log.clear': 'Cleared historical logs',
   'log.cleanup_start': 'Log cleanup task started.',
+  // Derouter API keys
+  'derouter_token.create':
+    'Created derouter API key {{name}} (ID: {{id}}) on channel {{channel}}',
+  'derouter_token.delete': 'Deleted derouter API key {{name}} (ID: {{id}})',
+  'derouter_token.budget_adjust':
+    'Adjusted derouter API key {{name}} (ID: {{id}}) budget by {{amount}}',
   // Generic middleware fallback
   generic: '{{method}} {{route}}',
 }

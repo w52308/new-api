@@ -23,6 +23,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Gauge,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -104,6 +105,12 @@ export function useSidebarData(): SidebarData {
         id: 'derouter',
         title: t('Derouter'),
         items: [
+          {
+            title: t('Derouter Dashboard'),
+            url: '/derouter-dashboard',
+            icon: Gauge,
+            requiredRole: ROLE.DEROUTER_VIEWER,
+          },
           {
             title: t('Derouter API Keys'),
             url: '/derouter-keys',
