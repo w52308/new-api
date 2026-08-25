@@ -26,7 +26,12 @@ import {
 } from '../api'
 import type { DerouterKeyBalance, DerouterKeyListItem } from '../types'
 
-export type DerouterKeysDialogType = 'view' | 'adjust' | 'delete' | 'create'
+export type DerouterKeysDialogType =
+  | 'view'
+  | 'adjust'
+  | 'multiplier'
+  | 'delete'
+  | 'create'
 
 type DerouterKeysContextType = {
   open: DerouterKeysDialogType | null

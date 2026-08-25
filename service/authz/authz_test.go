@@ -59,12 +59,15 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.True(t, Can(2, common.RoleAdminUser, DerouterKeyRead))
 	assert.True(t, Can(2, common.RoleAdminUser, DerouterKeyWrite))
 	assert.True(t, Can(2, common.RoleAdminUser, DerouterUsageRead))
+	assert.True(t, Can(2, common.RoleAdminUser, DerouterMultiplierWrite))
 	assert.False(t, Can(3, common.RoleCommonUser, DerouterKeyRead))
+	assert.False(t, Can(3, common.RoleCommonUser, DerouterMultiplierWrite))
 
 	// derouter viewer role: derouter resources allowed, channel denied.
 	assert.True(t, Can(4, common.RoleDerouterViewer, DerouterKeyRead))
 	assert.True(t, Can(4, common.RoleDerouterViewer, DerouterUsageRead))
 	assert.False(t, Can(4, common.RoleDerouterViewer, DerouterKeyWrite))
+	assert.False(t, Can(4, common.RoleDerouterViewer, DerouterMultiplierWrite))
 	assert.False(t, Can(4, common.RoleDerouterViewer, ChannelRead))
 }
 
@@ -121,9 +124,10 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionSecretView:     false,
 		},
 		ResourceDerouter: {
-			ActionKeyRead:   true,
-			ActionKeyWrite:  true,
-			ActionUsageRead: true,
+			ActionKeyRead:         true,
+			ActionKeyWrite:        true,
+			ActionUsageRead:       true,
+			ActionMultiplierWrite: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
@@ -154,9 +158,10 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionSecretView:     false,
 		},
 		ResourceDerouter: {
-			ActionKeyRead:   true,
-			ActionKeyWrite:  true,
-			ActionUsageRead: true,
+			ActionKeyRead:         true,
+			ActionKeyWrite:        true,
+			ActionUsageRead:       true,
+			ActionMultiplierWrite: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))

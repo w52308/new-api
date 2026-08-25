@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AdjustBudgetDialog } from './dialogs/adjust-budget-dialog'
 import { CreateDerouterKeyDialog } from './dialogs/create-derouter-key-dialog'
 import { DeleteDerouterKeyDialog } from './dialogs/delete-derouter-key-dialog'
+import { MultiplierDialog } from './dialogs/multiplier-dialog'
 import { ViewDerouterKeyDialog } from './dialogs/view-derouter-key-dialog'
 import { useDerouterKeys } from './derouter-keys-provider'
 
@@ -30,6 +31,7 @@ export function DerouterKeysDialogs() {
       <CreateDerouterKeyDialog onCreated={triggerRefresh} />
       <ViewDerouterKeyDialog />
       <AdjustBudgetDialog onAdjusted={triggerRefresh} />
+      <MultiplierDialog onUpdated={triggerRefresh} />
       <DeleteDerouterKeyDialog onDeleted={triggerRefresh} />
     </>
   )

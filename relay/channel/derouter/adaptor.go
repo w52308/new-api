@@ -33,12 +33,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if base == "" {
 		return "", errors.New("derouter channel: base_url is required")
 	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeResponses:
+		return fmt.Sprintf("%s/openai/v1/responses", base), nil
+	case relayconstant.RelayModeResponsesCompact:
+		return fmt.Sprintf("%s/openai/v1/responses/compact", base), nil
+	case relayconstant.RelayModeAlphaSearch:
+		return fmt.Sprintf("%s/openai/v1/alpha/search", base), nil
+	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if info.RelayMode == relayconstant.RelayModeResponses ||
-			info.RelayMode == relayconstant.RelayModeResponsesCompact {
-			return "", errors.New("derouter channel: claude responses not supported")
-		}
 		u := fmt.Sprintf("%s/proxy/v1/messages", base)
 		if info.IsClaudeBetaQuery || info.ChannelOtherSettings.ClaudeBetaQuery {
 			u += "?beta=true"
@@ -83,8 +87,8 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(*gin.Context, *relaycommon.RelayInfo, dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	return a.openaiAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(*gin.Context, int, dto.RerankRequest) (any, error) {
@@ -108,6 +112,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	switch info.RelayMode {
+	case relayconstant.RelayModeResponsesCompact:
+		return openai.OaiResponsesCompactionHandler(c, resp)
+	case relayconstant.RelayModeResponses:
+		if info.IsStream {
+			return openai.OaiResponsesStreamHandler(c, info, resp)
+		}
+		return openai.OaiResponsesHandler(c, info, resp)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		info.FinalRequestRelayFormat = types.RelayFormatClaude
 		if info.IsStream {

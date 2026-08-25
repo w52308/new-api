@@ -5394,6 +5394,12 @@
     "Spending by Key": "各 Key 消耗",
     "Recent Usage": "最近用量",
     "Select a key": "选择一个 Key",
-    "Select a key to view recent usage": "选择一个 Key 查看最近用量"
+    "Select a key to view recent usage": "选择一个 Key 查看最近用量",
+    "Set Multiplier": "设置倍率",
+    "Set the customer-facing display multiplier (倍率) for this sub-key.": "设置该子密钥的面向客户的显示倍率（倍率）。",
+    "Sensitive: this changes how much the sub-key customers are charged relative to the upstream cost.": "敏感操作：这会改变子密钥客户相对于上游成本被计费的金额。",
+    "Multiplier updated": "倍率已更新",
+    "Invalid multiplier": "倍率无效",
+    "Failed to set multiplier": "设置倍率失败"
   }
 }

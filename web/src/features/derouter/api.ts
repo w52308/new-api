@@ -122,6 +122,17 @@ export async function adjustDerouterKeyBudget(
   return res.data
 }
 
+// Set a derouter key's customer-facing display multiplier (倍率). Admin only.
+export async function setDerouterKeyMultiplier(
+  id: number,
+  multiplier: number
+): Promise<ApiResponse> {
+  const res = await api.put(`/api/token/derouter/${id}/multiplier`, {
+    multiplier,
+  })
+  return res.data
+}
+
 // Fetch live upstream budget state for a derouter key's sub-key.
 export async function getDerouterKeyBalance(
   id: number

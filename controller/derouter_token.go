@@ -23,6 +23,11 @@ import (
 // so it is clamped to protect the upstream sub-key budget from absurd values.
 const maxDerouterBudgetAdjust = 100000.0
 
+// maxDerouterMultiplier bounds the customer-facing display multiplier (倍率)
+// that admins may set on a derouter sub-key. It is a user-controlled pricing
+// ratio, so it is clamped to a sane positive range before the upstream call.
+const maxDerouterMultiplier = 100.0
+
 // loadDerouterChannelById validates a derouter channel (single-key, type 61)
 // and returns it plus its plaintext account key. channelId comes from the
 // request, unlike loadDerouterChannel which reads the URL param.
@@ -378,6 +383,58 @@ func UpdateDerouterTokenBudget(c *gin.Context) {
 		"id":     token.Id,
 		"name":   token.Name,
 		"amount": amount,
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
+// UpdateDerouterTokenMultiplier sets the customer-facing display multiplier
+// (倍率) of a derouter sub-key. This is a highly sensitive pricing operation:
+// it directly changes what the sub-key's end customer is charged relative to
+// the upstream cost, so it is gated by a dedicated admin-only permission
+// (DerouterMultiplierWrite) and audited. The multiplier is validated to a
+// positive, bounded value before the upstream call.
+func UpdateDerouterTokenMultiplier(c *gin.Context) {
+	var req struct {
+		Multiplier float64 `json:"multiplier" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	token, _, accountKey, ok := loadDerouterTokenForUser(c)
+	if !ok {
+		common.ApiErrorI18n(c, i18n.MsgTokenInvalid)
+		return
+	}
+
+	multiplier := req.Multiplier
+	if math.IsNaN(multiplier) || math.IsInf(multiplier, 0) || multiplier <= 0 || multiplier > maxDerouterMultiplier {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multiplier must be positive and no greater than 100"})
+		return
+	}
+
+	payload := service.DerouterUpdateSubKeyPayload{DisplayMultiplier: multiplier}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+	code, body, err := service.DerouterUpdateSubKey(ctx, service.NewDerouterMgmtClient(), service.DerouterMgmtBaseURL(""), accountKey, token.DerouterSubKeyID, payload)
+	if err != nil {
+		common.SysError("derouter update sub-key multiplier: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "failed to set derouter sub-key multiplier"})
+		return
+	}
+	if code < 200 || code >= 300 {
+		c.JSON(http.StatusOK, gin.H{
+			"success":         false,
+			"message":         strings.TrimSpace(string(body)),
+			"upstream_status": code,
+		})
+		return
+	}
+	recordManageAuditFor(c, token.UserId, "derouter_token.multiplier_update", map[string]interface{}{
+		"id":         token.Id,
+		"name":       token.Name,
+		"multiplier": multiplier,
 	})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }

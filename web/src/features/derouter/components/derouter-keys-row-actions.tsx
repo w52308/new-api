@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row } from '@tanstack/react-table'
-import { Eye, Wallet, Trash2, Copy, Loader2 } from 'lucide-react'
+import { Eye, Wallet, Trash2, Copy, Loader2, Percent } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -35,6 +35,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { DerouterKeyListItem } from '../types'
 import { useDerouterKeys } from './derouter-keys-provider'
@@ -48,6 +50,8 @@ export function DerouterKeysRowActions<TData>({
 }: DerouterKeysRowActionsProps<TData>) {
   const { t } = useTranslation()
   const item = row.original as DerouterKeyListItem
+  const user = useAuthStore((s) => s.auth.user)
+  const isAdmin = Boolean(user && (user.role ?? 0) >= ROLE.ADMIN)
   const {
     setOpen,
     setCurrentRow,
@@ -90,24 +94,47 @@ export function DerouterKeysRowActions<TData>({
         <TooltipContent>{t('View')}</TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={() => {
-                setCurrentRow(item)
-                setOpen('adjust')
-              }}
-              aria-label={t('Adjust')}
-            />
-          }
-        >
-          <Wallet />
-        </TooltipTrigger>
-        <TooltipContent>{t('Adjust')}</TooltipContent>
-      </Tooltip>
+      {isAdmin && (
+        <>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  onClick={() => {
+                    setCurrentRow(item)
+                    setOpen('adjust')
+                  }}
+                  aria-label={t('Adjust')}
+                />
+              }
+            >
+              <Wallet />
+            </TooltipTrigger>
+            <TooltipContent>{t('Adjust')}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  onClick={() => {
+                    setCurrentRow(item)
+                    setOpen('multiplier')
+                  }}
+                  aria-label={t('Multiplier')}
+                />
+              }
+            >
+              <Percent />
+            </TooltipTrigger>
+            <TooltipContent>{t('Multiplier')}</TooltipContent>
+          </Tooltip>
+        </>
+      )}
 
       <DataTableRowActionMenu ariaLabel={t('Open menu')} contentClassName='w-[200px]' modal={false}>
         <DropdownMenuItem onClick={handleCopy} disabled={isCopying}>

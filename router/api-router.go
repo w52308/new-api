@@ -264,6 +264,7 @@ func SetApiRouter(router *gin.Engine) {
 			derouterTokenRoute.GET("/:id/usage", middleware.RequirePermission(authz.DerouterUsageRead), controller.GetDerouterTokenUsage)
 			derouterTokenRoute.GET("/:id/balance", middleware.RequirePermission(authz.DerouterKeyRead), controller.GetDerouterTokenBalance)
 			derouterTokenRoute.PUT("/:id/budget", middleware.RequirePermission(authz.DerouterKeyWrite), controller.UpdateDerouterTokenBudget)
+			derouterTokenRoute.PUT("/:id/multiplier", middleware.RequirePermission(authz.DerouterMultiplierWrite), controller.UpdateDerouterTokenMultiplier)
 		}
 
 		usageRoute := apiRouter.Group("/usage")

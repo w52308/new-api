@@ -5394,6 +5394,12 @@
     "Spending by Key": "Spending by Key",
     "Recent Usage": "Recent Usage",
     "Select a key": "Select a key",
-    "Select a key to view recent usage": "Select a key to view recent usage"
+    "Select a key to view recent usage": "Select a key to view recent usage",
+    "Set Multiplier": "Set Multiplier",
+    "Set the customer-facing display multiplier (倍率) for this sub-key.": "Set the customer-facing display multiplier (倍率) for this sub-key.",
+    "Sensitive: this changes how much the sub-key customers are charged relative to the upstream cost.": "Sensitive: this changes how much the sub-key customers are charged relative to the upstream cost.",
+    "Multiplier updated": "Multiplier updated",
+    "Invalid multiplier": "Invalid multiplier",
+    "Failed to set multiplier": "Failed to set multiplier"
   }
 }
