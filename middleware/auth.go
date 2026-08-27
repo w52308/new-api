@@ -450,8 +450,8 @@ func TokenAuth() func(c *gin.Context) {
 				c.Set("id", token.UserId)
 			}
 		}
-		if err != nil {
-			if errors.Is(err, model.ErrDatabase) {
+		if token == nil || err != nil {
+			if err != nil && errors.Is(err, model.ErrDatabase) {
 				common.SysLog("TokenAuth ValidateUserToken database error: " + err.Error())
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))

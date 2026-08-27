@@ -184,6 +184,7 @@ func main() {
 				"type":    "new_api_panic",
 			},
 		})
+		c.Abort()
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))

@@ -55,6 +55,28 @@ func TestResolveTokenKeyCandidates(t *testing.T) {
 	}
 }
 
+func TestTokenAuthEmptyAuthorizationReturnsUnauthorizedNotPanic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/v1/chat/completions", TokenAuth(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	// A relay request with no Authorization header (and no mj-api-secret)
+	// resolves to all-empty token candidates, so the lookup loop is skipped and
+	// token stays nil with a nil error. TokenAuth must abort with 401 rather than
+	// dereference the nil token (regression for the relay "new_api_panic" 500).
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	response := httptest.NewRecorder()
+
+	require.NotPanics(t, func() {
+		router.ServeHTTP(response, request)
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+	assert.Contains(t, response.Body.String(), "new_api_error")
+}
+
 func newTokenAuthTestContext() *gin.Context {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
